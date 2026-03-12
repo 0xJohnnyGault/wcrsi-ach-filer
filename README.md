@@ -1,19 +1,35 @@
-# README
+# Setup
 
-## About
+Open Powershell as Admin
 
-This is the official Wails React-TS template.
+`winget install -e --id GoLang.Go`
+`winget install -e --id OpenJS.NodeJS.LTS`
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+`go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 
-## Live Development
+`wails doctor`
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+Create a Github.com account
 
-## Building
+Install Github Desktop
+https://central.github.com/deployments/desktop/desktop/latest/win32
 
-To build a redistributable, production mode package, use `wails build`.
+Download this repo https://github.com/0xJohnnyGault/wcrsi-ach-filer using Github Desktop
+
+# Prompt (paste into Claude)
+
+Build a multi-platform app in the current directory. The app should be called ACHFiler and use Wails and React that will allow the user to select a folder on their computer and designate it as the Destination Folder, then the user can select another folder and designate it as Source Folder. These choices should be saved in a config file.
+
+The program should follow these steps:
+
+- Open the first XLS file found in the Source Directory
+- Find the "Account" column in the XLS file (in Row 2), and loop through every Account Number, and for each account number:
+  - FOUND_DIR_NAME = Search the Destination Folder for a sub-directory name that contains the Account Number
+  - If no FOUND_DIR_NAME is found, output an error log for the user
+  - Copy the contents of the Source Directory to the FOUND_DIR_NAME/Payments folder (create the Payments subdirectory if it does not exist)
+
+# Usage
+
+Once Claude builds the app, you can run these commands from a Powershell
+
+`wails build` This will build the EXE and put it in the `build/bin` directory.
