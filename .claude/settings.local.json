@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Public/Documents/GlennLocal/wcrsi-ach-filer -type f ! -path */node_modules/* ! -path */.git/* ! -path */dist/*)",
+      "Bash(go build:*)",
+      "Bash(wails build:*)"
+    ]
+  }
+}

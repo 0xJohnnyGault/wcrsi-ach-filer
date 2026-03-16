@@ -242,6 +242,94 @@ func (a *App) ProcessFiles(sourceFolder, destFolder string) ProcessResult {
 	return result
 }
 
+func (a *App) CheckFiler(sourceFolder, destFolder string) ProcessResult {
+	result := ProcessResult{Success: true}
+	addLog := func(logType, msg string) {
+		result.Logs = append(result.Logs, LogEntry{Type: logType, Message: msg})
+		if logType == "error" {
+			result.Success = false
+		}
+	}
+
+	// Read source directory for PDF files
+	entries, err := os.ReadDir(sourceFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read source folder: %v", err))
+		return result
+	}
+
+	var pdfFiles []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(e.Name()), ".pdf") {
+			pdfFiles = append(pdfFiles, e.Name())
+		}
+	}
+
+	if len(pdfFiles) == 0 {
+		addLog("error", "No PDF files found in source folder")
+		return result
+	}
+
+	// Read destination sub-directories
+	destEntries, err := os.ReadDir(destFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read destination folder: %v", err))
+		return result
+	}
+	var destDirs []string
+	for _, e := range destEntries {
+		if e.IsDir() {
+			destDirs = append(destDirs, e.Name())
+		}
+	}
+
+	// Process each PDF file
+	for _, pdfName := range pdfFiles {
+		// Extract account number: last 10 characters of filename (before .pdf extension)
+		baseName := strings.TrimSuffix(pdfName, filepath.Ext(pdfName))
+		if len(baseName) < 10 {
+			addLog("error", fmt.Sprintf("%s: Filename too short to extract 10-digit account number", pdfName))
+			continue
+		}
+		acctNum := baseName[len(baseName)-10:]
+
+		// Search destination dirs for one containing the account number
+		foundDir := ""
+		for _, dir := range destDirs {
+			if strings.Contains(dir, acctNum) {
+				foundDir = dir
+				break
+			}
+		}
+
+		if foundDir == "" {
+			addLog("error", fmt.Sprintf("%s: No matching directory found for account %s", pdfName, acctNum))
+			continue
+		}
+
+		// Create Payments subdirectory if needed
+		paymentsDir := filepath.Join(destFolder, foundDir, "Payments")
+		if err := os.MkdirAll(paymentsDir, 0755); err != nil {
+			addLog("error", fmt.Sprintf("%s: Cannot create Payments folder: %v", pdfName, err))
+			continue
+		}
+
+		// Copy PDF to Payments dir
+		src := filepath.Join(sourceFolder, pdfName)
+		dst := filepath.Join(paymentsDir, pdfName)
+		if err := copyFile(src, dst); err != nil {
+			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", pdfName, err))
+		} else {
+			addLog("success", fmt.Sprintf("%s: Copied to %s/Payments (account %s)", pdfName, foundDir, acctNum))
+		}
+	}
+
+	return result
+}
+
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {

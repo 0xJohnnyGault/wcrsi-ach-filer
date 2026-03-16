@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import './App.css';
-import { GetConfig, SaveConfig, SelectFolder, ProcessFiles } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler } from "../wailsjs/go/main/App";
 
 interface LogEntry {
   type: string;
@@ -57,9 +57,23 @@ function App() {
     }
   }
 
+  async function handleCheckFiler() {
+    if (!sourceFolder || !destFolder) return;
+    setLogs([]);
+    setProcessing(true);
+    try {
+      const result: ProcessResult = await CheckFiler(sourceFolder, destFolder);
+      setLogs(result.logs || []);
+    } catch (err: any) {
+      setLogs([{ type: 'error', message: `Unexpected error: ${err}` }]);
+    } finally {
+      setProcessing(false);
+    }
+  }
+
   return (
     <div id="App">
-      <h1>ACH Filer</h1>
+      <h1>Gohno</h1>
 
       <div className="folder-section">
         <div className="folder-row">
@@ -78,7 +92,14 @@ function App() {
           onClick={handleProcess}
           disabled={processing || !sourceFolder || !destFolder}
         >
-          {processing ? 'Processing...' : 'Process Files'}
+          {processing ? 'Processing...' : 'ACH Filer'}
+        </button>
+        <button
+          className="btn btn-check"
+          onClick={handleCheckFiler}
+          disabled={processing || !sourceFolder || !destFolder}
+        >
+          {processing ? 'Processing...' : 'Check Filer'}
         </button>
       </div>
 

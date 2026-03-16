@@ -62,7 +62,20 @@ h1 {
 }
 
 .action-section {
+  display: flex;
+  gap: 1rem;
   margin-bottom: 2rem;
+}
+
+.btn-check {
+  background-color: #e67e22;
+  font-size: 1rem;
+  padding: 0.7rem 2rem;
+  min-width: 200px;
+}
+
+.btn-check:hover:not(:disabled) {
+  background-color: #f39c12;
 }
 
 .log-section {
