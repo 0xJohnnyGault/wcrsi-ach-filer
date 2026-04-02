@@ -330,6 +330,159 @@ func (a *App) CheckFiler(sourceFolder, destFolder string) ProcessResult {
 	return result
 }
 
+func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
+	result := ProcessResult{Success: true}
+	addLog := func(logType, msg string) {
+		result.Logs = append(result.Logs, LogEntry{Type: logType, Message: msg})
+		if logType == "error" {
+			result.Success = false
+		}
+	}
+
+	// Find first XLS/XLSX file in source folder
+	xlsFile := ""
+	entries, err := os.ReadDir(sourceFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read source folder: %v", err))
+		return result
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if ext == ".xls" || ext == ".xlsx" {
+			xlsFile = filepath.Join(sourceFolder, e.Name())
+			break
+		}
+	}
+	if xlsFile == "" {
+		addLog("error", "No XLS/XLSX file found in source folder")
+		return result
+	}
+	addLog("success", fmt.Sprintf("Found spreadsheet: %s", filepath.Base(xlsFile)))
+
+	// Open the spreadsheet
+	f, err := excelize.OpenFile(xlsFile)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot open spreadsheet: %v", err))
+		return result
+	}
+	defer f.Close()
+
+	// Get the first sheet
+	sheetName := f.GetSheetName(0)
+	if sheetName == "" {
+		addLog("error", "No sheets found in spreadsheet")
+		return result
+	}
+
+	// Find "Reference/Invoice#" column in Row 1
+	rows, err := f.GetRows(sheetName)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read rows: %v", err))
+		return result
+	}
+	if len(rows) < 1 {
+		addLog("error", "Spreadsheet is empty")
+		return result
+	}
+
+	headerRow := rows[0] // Row 1 (0-indexed: 0)
+	refCol := -1
+	for i, cell := range headerRow {
+		if strings.EqualFold(strings.TrimSpace(cell), "reference/invoice#") {
+			refCol = i
+			break
+		}
+	}
+	if refCol == -1 {
+		addLog("error", "No 'Reference/Invoice#' column found in Row 1")
+		return result
+	}
+
+	// Read destination sub-directories
+	destEntries, err := os.ReadDir(destFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read destination folder: %v", err))
+		return result
+	}
+	var destDirs []string
+	for _, e := range destEntries {
+		if e.IsDir() {
+			destDirs = append(destDirs, e.Name())
+		}
+	}
+
+	// Collect source files to copy (all files in source folder)
+	var sourceFiles []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			sourceFiles = append(sourceFiles, e.Name())
+		}
+	}
+
+	// Track which references we've already processed to avoid duplicate copies
+	processed := make(map[string]bool)
+
+	// Loop through data rows (starting at Row 2, index 1)
+	for rowIdx := 1; rowIdx < len(rows); rowIdx++ {
+		row := rows[rowIdx]
+		if refCol >= len(row) {
+			continue
+		}
+		refNum := strings.TrimSpace(row[refCol])
+		if refNum == "" {
+			continue
+		}
+		if processed[refNum] {
+			continue
+		}
+		processed[refNum] = true
+
+		// Search destination dirs for one containing the reference/invoice number
+		foundDir := ""
+		for _, dir := range destDirs {
+			if strings.Contains(dir, refNum) {
+				foundDir = dir
+				break
+			}
+		}
+
+		if foundDir == "" {
+			addLog("error", fmt.Sprintf("Reference %s: No matching directory found in destination", refNum))
+			continue
+		}
+
+		// Create Payments subdirectory
+		paymentsDir := filepath.Join(destFolder, foundDir, "Payments")
+		if err := os.MkdirAll(paymentsDir, 0755); err != nil {
+			addLog("error", fmt.Sprintf("Reference %s: Cannot create Payments folder: %v", refNum, err))
+			continue
+		}
+
+		// Copy all source files to Payments dir
+		copyErr := false
+		for _, fname := range sourceFiles {
+			src := filepath.Join(sourceFolder, fname)
+			dst := filepath.Join(paymentsDir, fname)
+			if err := copyFile(src, dst); err != nil {
+				addLog("error", fmt.Sprintf("Reference %s: Failed to copy %s: %v", refNum, fname, err))
+				copyErr = true
+			}
+		}
+		if !copyErr {
+			addLog("success", fmt.Sprintf("Reference %s: Copied %d files to %s/Payments", refNum, len(sourceFiles), foundDir))
+		}
+	}
+
+	if len(processed) == 0 {
+		addLog("error", "No reference/invoice numbers found in the spreadsheet")
+	}
+
+	return result
+}
+
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {

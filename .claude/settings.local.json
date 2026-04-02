@@ -3,7 +3,9 @@
     "allow": [
       "Bash(find /c/Users/Public/Documents/GlennLocal/wcrsi-ach-filer -type f ! -path */node_modules/* ! -path */.git/* ! -path */dist/*)",
       "Bash(go build:*)",
-      "Bash(wails build:*)"
+      "Bash(wails build:*)",
+      "Bash(find C:UsersPublicDocumentsGlennLocalwcrsi-ach-filer -not -path */node_modules* -not -path */.git* -type f)",
+      "Bash(\"$USERPROFILE/Desktop/Gohno.exe\")"
     ]
   }
 }

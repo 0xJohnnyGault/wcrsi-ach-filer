@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
-import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler } from "../wailsjs/go/main/App";
+import logoSvg from './assets/images/logo.svg';
+import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler, CBPFiler } from "../wailsjs/go/main/App";
 
 interface LogEntry {
   type: string;
@@ -11,6 +12,30 @@ interface ProcessResult {
   logs: LogEntry[];
   success: boolean;
 }
+
+const tasks = [
+  {
+    id: 'ach',
+    title: 'ACH Filer',
+    color: 'green',
+    description: 'Processes an XLS/XLSX spreadsheet from the source folder. Reads the "Account" column in Row 2 to match account numbers against destination subdirectories. Copies all source files into each matched directory\'s Payments folder.',
+    requires: 'XLS/XLSX file with "Account" column in Row 2',
+  },
+  {
+    id: 'check',
+    title: 'Check Filer',
+    color: 'orange',
+    description: 'Scans the source folder for PDF files. Extracts the account number from the last 10 characters of each PDF filename. Matches against destination subdirectories and copies each PDF into the corresponding Payments folder.',
+    requires: 'PDF files where the last 10 filename characters are the account number',
+  },
+  {
+    id: 'cbp',
+    title: 'CBP Filer',
+    color: 'purple',
+    description: 'Opens an XLS/XLSX spreadsheet from the source folder. Reads the "Reference/Invoice#" column in Row 1 to match references against destination subdirectories. Copies all source files into each matched directory\'s Payments folder.',
+    requires: 'XLS/XLSX file with "Reference/Invoice#" column in Row 1',
+  },
+];
 
 function App() {
   const [sourceFolder, setSourceFolder] = useState('');
@@ -43,12 +68,25 @@ function App() {
     }
   }
 
-  async function handleProcess() {
+  async function runTask(taskId: string) {
     if (!sourceFolder || !destFolder) return;
     setLogs([]);
     setProcessing(true);
     try {
-      const result: ProcessResult = await ProcessFiles(sourceFolder, destFolder);
+      let result: ProcessResult;
+      switch (taskId) {
+        case 'ach':
+          result = await ProcessFiles(sourceFolder, destFolder);
+          break;
+        case 'check':
+          result = await CheckFiler(sourceFolder, destFolder);
+          break;
+        case 'cbp':
+          result = await CBPFiler(sourceFolder, destFolder);
+          break;
+        default:
+          return;
+      }
       setLogs(result.logs || []);
     } catch (err: any) {
       setLogs([{ type: 'error', message: `Unexpected error: ${err}` }]);
@@ -57,23 +95,13 @@ function App() {
     }
   }
 
-  async function handleCheckFiler() {
-    if (!sourceFolder || !destFolder) return;
-    setLogs([]);
-    setProcessing(true);
-    try {
-      const result: ProcessResult = await CheckFiler(sourceFolder, destFolder);
-      setLogs(result.logs || []);
-    } catch (err: any) {
-      setLogs([{ type: 'error', message: `Unexpected error: ${err}` }]);
-    } finally {
-      setProcessing(false);
-    }
-  }
+  const foldersReady = sourceFolder && destFolder;
 
   return (
     <div id="App">
-      <h1>Gohno</h1>
+      <div className="logo-section">
+        <img src={logoSvg} alt="Gohno" className="logo" />
+      </div>
 
       <div className="folder-section">
         <div className="folder-row">
@@ -86,21 +114,25 @@ function App() {
         </div>
       </div>
 
-      <div className="action-section">
-        <button
-          className="btn btn-process"
-          onClick={handleProcess}
-          disabled={processing || !sourceFolder || !destFolder}
-        >
-          {processing ? 'Processing...' : 'ACH Filer'}
-        </button>
-        <button
-          className="btn btn-check"
-          onClick={handleCheckFiler}
-          disabled={processing || !sourceFolder || !destFolder}
-        >
-          {processing ? 'Processing...' : 'Check Filer'}
-        </button>
+      <div className="cards-section">
+        {tasks.map((task) => (
+          <div key={task.id} className={`card card-${task.color}`}>
+            <div className="card-header">
+              <h3 className="card-title">{task.title}</h3>
+            </div>
+            <p className="card-description">{task.description}</p>
+            <div className="card-requires">
+              <span className="requires-label">Requires:</span> {task.requires}
+            </div>
+            <button
+              className={`btn card-btn card-btn-${task.color}`}
+              onClick={() => runTask(task.id)}
+              disabled={processing || !foldersReady}
+            >
+              {processing ? 'Processing...' : `Run ${task.title}`}
+            </button>
+          </div>
+        ))}
       </div>
 
       {logs.length > 0 && (
@@ -109,7 +141,7 @@ function App() {
           <div className="log-list">
             {logs.map((log, i) => (
               <div key={i} className={`log-entry log-${log.type}`}>
-                {log.type === 'success' ? '✓' : '✗'} {log.message}
+                {log.type === 'success' ? '\u2713' : '\u2717'} {log.message}
               </div>
             ))}
           </div>
