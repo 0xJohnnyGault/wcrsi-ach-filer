@@ -32,8 +32,8 @@ const tasks = [
     id: 'cbp',
     title: 'CBP Filer',
     color: 'purple',
-    description: 'Opens an XLS/XLSX spreadsheet from the source folder. Reads the "Reference/Invoice#" column in Row 1 to match references against destination subdirectories. Copies all source files into each matched directory\'s Payments folder.',
-    requires: 'XLS/XLSX file with "Reference/Invoice#" column in Row 1',
+    description: 'Processes multiple XLS and PDF files grouped by date (YYYY_MM_DD in filenames). Extracts the loan number from the last 10 characters of each XLS filename to match against destination subdirectories. Copies each XLS along with its date-matched PDF deposit slip into the matched directory\'s Payments folder.',
+    requires: 'XLS/XLSX files named YYYY_MM_DD_XXXXXXXXXX.xlsx (10-digit loan number) and PDF deposit slips named YYYY_MM_DD_Deposit_Slip.pdf',
   },
 ];
 
@@ -101,6 +101,7 @@ function App() {
     <div id="App">
       <div className="logo-section">
         <img src={logoSvg} alt="Gohno" className="logo" />
+        <span className="rev-label">Rev 5</span>
       </div>
 
       <div className="folder-section">

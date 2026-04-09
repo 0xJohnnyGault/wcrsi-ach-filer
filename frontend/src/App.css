@@ -7,6 +7,16 @@
 /* Logo */
 .logo-section {
   margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.rev-label {
+  font-size: 0.7rem;
+  color: #8899aa;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .logo {

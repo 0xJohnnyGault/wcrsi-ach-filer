@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -339,65 +340,46 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 		}
 	}
 
-	// Find first XLS/XLSX file in source folder
-	xlsFile := ""
+	datePattern := regexp.MustCompile(`\d{4}_\d{2}_\d{2}`)
+
+	// Read source directory
 	entries, err := os.ReadDir(sourceFolder)
 	if err != nil {
 		addLog("error", fmt.Sprintf("Cannot read source folder: %v", err))
 		return result
 	}
+
+	// Group XLS and PDF files by date extracted from filename
+	type dateGroup struct {
+		xlsFiles []string
+		pdfFiles []string
+	}
+	groups := make(map[string]*dateGroup)
+
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		ext := strings.ToLower(filepath.Ext(e.Name()))
+		name := e.Name()
+		ext := strings.ToLower(filepath.Ext(name))
+		dateMatch := datePattern.FindString(name)
+		if dateMatch == "" {
+			continue
+		}
+
+		if groups[dateMatch] == nil {
+			groups[dateMatch] = &dateGroup{}
+		}
+
 		if ext == ".xls" || ext == ".xlsx" {
-			xlsFile = filepath.Join(sourceFolder, e.Name())
-			break
+			groups[dateMatch].xlsFiles = append(groups[dateMatch].xlsFiles, name)
+		} else if ext == ".pdf" {
+			groups[dateMatch].pdfFiles = append(groups[dateMatch].pdfFiles, name)
 		}
 	}
-	if xlsFile == "" {
-		addLog("error", "No XLS/XLSX file found in source folder")
-		return result
-	}
-	addLog("success", fmt.Sprintf("Found spreadsheet: %s", filepath.Base(xlsFile)))
 
-	// Open the spreadsheet
-	f, err := excelize.OpenFile(xlsFile)
-	if err != nil {
-		addLog("error", fmt.Sprintf("Cannot open spreadsheet: %v", err))
-		return result
-	}
-	defer f.Close()
-
-	// Get the first sheet
-	sheetName := f.GetSheetName(0)
-	if sheetName == "" {
-		addLog("error", "No sheets found in spreadsheet")
-		return result
-	}
-
-	// Find "Reference/Invoice#" column in Row 1
-	rows, err := f.GetRows(sheetName)
-	if err != nil {
-		addLog("error", fmt.Sprintf("Cannot read rows: %v", err))
-		return result
-	}
-	if len(rows) < 1 {
-		addLog("error", "Spreadsheet is empty")
-		return result
-	}
-
-	headerRow := rows[0] // Row 1 (0-indexed: 0)
-	refCol := -1
-	for i, cell := range headerRow {
-		if strings.EqualFold(strings.TrimSpace(cell), "reference/invoice#") {
-			refCol = i
-			break
-		}
-	}
-	if refCol == -1 {
-		addLog("error", "No 'Reference/Invoice#' column found in Row 1")
+	if len(groups) == 0 {
+		addLog("error", "No files with a YYYY_MM_DD date found in source folder")
 		return result
 	}
 
@@ -414,70 +396,65 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 		}
 	}
 
-	// Collect source files to copy (all files in source folder)
-	var sourceFiles []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			sourceFiles = append(sourceFiles, e.Name())
+	totalProcessed := 0
+
+	// Process each date group
+	for date, group := range groups {
+		addLog("success", fmt.Sprintf("Date %s: Found %d XLS file(s) and %d PDF deposit slip(s)", date, len(group.xlsFiles), len(group.pdfFiles)))
+
+		// Process each XLS file in this date group
+		for _, xlsName := range group.xlsFiles {
+			// Extract loan number: last 10 characters of filename before extension
+			baseName := strings.TrimSuffix(xlsName, filepath.Ext(xlsName))
+			if len(baseName) < 10 {
+				addLog("error", fmt.Sprintf("%s: Filename too short to extract 10-digit loan number", xlsName))
+				continue
+			}
+			loanNum := baseName[len(baseName)-10:]
+
+			// Search destination dirs for one containing the loan number
+			foundDir := ""
+			for _, dir := range destDirs {
+				if strings.Contains(dir, loanNum) {
+					foundDir = dir
+					break
+				}
+			}
+
+			if foundDir == "" {
+				addLog("error", fmt.Sprintf("%s: No matching directory found for loan %s", xlsName, loanNum))
+				continue
+			}
+
+			// Create Payments subdirectory
+			paymentsDir := filepath.Join(destFolder, foundDir, "Payments")
+			if err := os.MkdirAll(paymentsDir, 0755); err != nil {
+				addLog("error", fmt.Sprintf("%s: Cannot create Payments folder: %v", xlsName, err))
+				continue
+			}
+
+			// Copy the XLS + date-matched PDF deposit slip(s)
+			filesToCopy := []string{xlsName}
+			filesToCopy = append(filesToCopy, group.pdfFiles...)
+
+			copyErr := false
+			for _, fname := range filesToCopy {
+				src := filepath.Join(sourceFolder, fname)
+				dst := filepath.Join(paymentsDir, fname)
+				if err := copyFile(src, dst); err != nil {
+					addLog("error", fmt.Sprintf("%s: Failed to copy %s: %v", xlsName, fname, err))
+					copyErr = true
+				}
+			}
+			if !copyErr {
+				addLog("success", fmt.Sprintf("%s: Copied to %s/Payments (loan %s) with %d deposit slip(s)", xlsName, foundDir, loanNum, len(group.pdfFiles)))
+			}
+			totalProcessed++
 		}
 	}
 
-	// Track which references we've already processed to avoid duplicate copies
-	processed := make(map[string]bool)
-
-	// Loop through data rows (starting at Row 2, index 1)
-	for rowIdx := 1; rowIdx < len(rows); rowIdx++ {
-		row := rows[rowIdx]
-		if refCol >= len(row) {
-			continue
-		}
-		refNum := strings.TrimSpace(row[refCol])
-		if refNum == "" {
-			continue
-		}
-		if processed[refNum] {
-			continue
-		}
-		processed[refNum] = true
-
-		// Search destination dirs for one containing the reference/invoice number
-		foundDir := ""
-		for _, dir := range destDirs {
-			if strings.Contains(dir, refNum) {
-				foundDir = dir
-				break
-			}
-		}
-
-		if foundDir == "" {
-			addLog("error", fmt.Sprintf("Reference %s: No matching directory found in destination", refNum))
-			continue
-		}
-
-		// Create Payments subdirectory
-		paymentsDir := filepath.Join(destFolder, foundDir, "Payments")
-		if err := os.MkdirAll(paymentsDir, 0755); err != nil {
-			addLog("error", fmt.Sprintf("Reference %s: Cannot create Payments folder: %v", refNum, err))
-			continue
-		}
-
-		// Copy all source files to Payments dir
-		copyErr := false
-		for _, fname := range sourceFiles {
-			src := filepath.Join(sourceFolder, fname)
-			dst := filepath.Join(paymentsDir, fname)
-			if err := copyFile(src, dst); err != nil {
-				addLog("error", fmt.Sprintf("Reference %s: Failed to copy %s: %v", refNum, fname, err))
-				copyErr = true
-			}
-		}
-		if !copyErr {
-			addLog("success", fmt.Sprintf("Reference %s: Copied %d files to %s/Payments", refNum, len(sourceFiles), foundDir))
-		}
-	}
-
-	if len(processed) == 0 {
-		addLog("error", "No reference/invoice numbers found in the spreadsheet")
+	if totalProcessed == 0 {
+		addLog("error", "No files were processed")
 	}
 
 	return result
