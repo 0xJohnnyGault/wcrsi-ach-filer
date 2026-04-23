@@ -10,6 +10,14 @@ export function CheckFiler(arg1, arg2) {
   return window['go']['main']['App']['CheckFiler'](arg1, arg2);
 }
 
+export function DocFiler(arg1, arg2) {
+  return window['go']['main']['App']['DocFiler'](arg1, arg2);
+}
+
+export function GetActivityLog() {
+  return window['go']['main']['App']['GetActivityLog']();
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }

@@ -71,9 +71,15 @@
 /* Cards */
 .cards-section {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
+}
+
+@media (min-width: 1100px) {
+  .cards-section {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .card {
@@ -95,6 +101,7 @@
 .card-green  { border-left-color: #2ecc71; }
 .card-orange { border-left-color: #e67e22; }
 .card-purple { border-left-color: #9b59b6; }
+.card-teal   { border-left-color: #1abc9c; }
 
 .card-header {
   margin-bottom: 0.6rem;
@@ -109,6 +116,7 @@
 .card-green  .card-title { color: #2ecc71; }
 .card-orange .card-title { color: #e67e22; }
 .card-purple .card-title { color: #9b59b6; }
+.card-teal   .card-title { color: #1abc9c; }
 
 .card-description {
   font-size: 0.8rem;
@@ -145,10 +153,12 @@
 .card-btn-green  { background-color: #2ecc71; }
 .card-btn-orange { background-color: #e67e22; }
 .card-btn-purple { background-color: #9b59b6; }
+.card-btn-teal   { background-color: #1abc9c; }
 
 .card-btn-green:hover:not(:disabled)  { background-color: #3edd82; }
 .card-btn-orange:hover:not(:disabled) { background-color: #f39c12; }
 .card-btn-purple:hover:not(:disabled) { background-color: #ab69c6; }
+.card-btn-teal:hover:not(:disabled)   { background-color: #2ad1b1; }
 
 /* Results log */
 .log-section {
@@ -179,4 +189,67 @@
 
 .log-error {
   color: #e74c3c;
+}
+
+/* Activity log */
+.activity-section {
+  text-align: left;
+  margin-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1rem;
+}
+
+.activity-section h3 {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.activity-empty {
+  font-size: 0.8rem;
+  color: #667;
+}
+
+.activity-list {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  padding: 0.75rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.activity-entry {
+  display: flex;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  font-size: 0.78rem;
+  font-family: monospace;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.activity-entry:last-child {
+  border-bottom: none;
+}
+
+.activity-time {
+  color: #8899aa;
+  white-space: nowrap;
+}
+
+.activity-task {
+  color: #4a90d9;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+.activity-summary {
+  color: #ccc;
+}
+
+.activity-success .activity-summary {
+  color: #2ecc71;
+}
+
+.activity-error .activity-summary {
+  color: #e67e22;
 }

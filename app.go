@@ -9,10 +9,18 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/xuri/excelize/v2"
 )
+
+type ActivityEntry struct {
+	Timestamp string `json:"timestamp"`
+	Task      string `json:"task"`
+	Summary   string `json:"summary"`
+	Status    string `json:"status"` // "success" or "error"
+}
 
 type Config struct {
 	SourceFolder string `json:"sourceFolder"`
@@ -240,6 +248,7 @@ func (a *App) ProcessFiles(sourceFolder, destFolder string) ProcessResult {
 		addLog("error", "No account numbers found in the spreadsheet")
 	}
 
+	a.appendActivity("ACH Filer", result)
 	return result
 }
 
@@ -328,6 +337,7 @@ func (a *App) CheckFiler(sourceFolder, destFolder string) ProcessResult {
 		}
 	}
 
+	a.appendActivity("Check Filer", result)
 	return result
 }
 
@@ -457,7 +467,172 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 		addLog("error", "No files were processed")
 	}
 
+	a.appendActivity("CBP Filer", result)
 	return result
+}
+
+func (a *App) DocFiler(sourceFolder, destFolder string) ProcessResult {
+	result := ProcessResult{Success: true}
+	addLog := func(logType, msg string) {
+		result.Logs = append(result.Logs, LogEntry{Type: logType, Message: msg})
+		if logType == "error" {
+			result.Success = false
+		}
+	}
+
+	// Read source directory for all files
+	entries, err := os.ReadDir(sourceFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read source folder: %v", err))
+		a.appendActivity("Doc Filer", result)
+		return result
+	}
+
+	var docFiles []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		docFiles = append(docFiles, e.Name())
+	}
+
+	if len(docFiles) == 0 {
+		addLog("error", "No files found in source folder")
+		a.appendActivity("Doc Filer", result)
+		return result
+	}
+
+	// Read destination sub-directories
+	destEntries, err := os.ReadDir(destFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read destination folder: %v", err))
+		a.appendActivity("Doc Filer", result)
+		return result
+	}
+	var destDirs []string
+	for _, e := range destEntries {
+		if e.IsDir() {
+			destDirs = append(destDirs, e.Name())
+		}
+	}
+
+	digitOnly := regexp.MustCompile(`^\d{10}$`)
+
+	// Process each file
+	for _, docName := range docFiles {
+		baseName := strings.TrimSuffix(docName, filepath.Ext(docName))
+		if len(baseName) < 10 {
+			addLog("error", fmt.Sprintf("%s: Filename too short to contain a 10-digit account number", docName))
+			continue
+		}
+		acctNum := baseName[len(baseName)-10:]
+		if !digitOnly.MatchString(acctNum) {
+			addLog("error", fmt.Sprintf("%s: Last 10 characters are not all digits (got '%s')", docName, acctNum))
+			continue
+		}
+
+		// Search destination dirs for one containing the account number
+		foundDir := ""
+		for _, dir := range destDirs {
+			if strings.Contains(dir, acctNum) {
+				foundDir = dir
+				break
+			}
+		}
+
+		if foundDir == "" {
+			addLog("error", fmt.Sprintf("%s: No matching directory found for account %s", docName, acctNum))
+			continue
+		}
+
+		// Copy document directly to FOUND_DIR_NAME (not to Payments subfolder)
+		destDir := filepath.Join(destFolder, foundDir)
+		src := filepath.Join(sourceFolder, docName)
+		dst := filepath.Join(destDir, docName)
+		if err := copyFile(src, dst); err != nil {
+			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", docName, err))
+		} else {
+			addLog("success", fmt.Sprintf("%s: Copied to %s (account %s)", docName, foundDir, acctNum))
+		}
+	}
+
+	a.appendActivity("Doc Filer", result)
+	return result
+}
+
+func activityLogPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, ".achfiler")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "activity.json"), nil
+}
+
+func (a *App) GetActivityLog() ([]ActivityEntry, error) {
+	p, err := activityLogPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []ActivityEntry{}, nil
+		}
+		return nil, err
+	}
+	var entries []ActivityEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return []ActivityEntry{}, nil
+	}
+	return entries, nil
+}
+
+func (a *App) appendActivity(task string, result ProcessResult) {
+	successCount := 0
+	errorCount := 0
+	for _, log := range result.Logs {
+		if log.Type == "success" {
+			successCount++
+		} else {
+			errorCount++
+		}
+	}
+
+	status := "success"
+	if !result.Success {
+		status = "error"
+	}
+
+	summary := fmt.Sprintf("%d succeeded, %d errors", successCount, errorCount)
+
+	entry := ActivityEntry{
+		Timestamp: time.Now().Format("2006-01-02 03:04:05 PM"),
+		Task:      task,
+		Summary:   summary,
+		Status:    status,
+	}
+
+	entries, _ := a.GetActivityLog()
+	entries = append([]ActivityEntry{entry}, entries...)
+
+	// Keep last 100 entries
+	if len(entries) > 100 {
+		entries = entries[:100]
+	}
+
+	p, err := activityLogPath()
+	if err != nil {
+		return
+	}
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return
+	}
+	os.WriteFile(p, data, 0644)
 }
 
 func copyFile(src, dst string) error {

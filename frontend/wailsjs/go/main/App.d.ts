@@ -6,6 +6,10 @@ export function CBPFiler(arg1:string,arg2:string):Promise<main.ProcessResult>;
 
 export function CheckFiler(arg1:string,arg2:string):Promise<main.ProcessResult>;
 
+export function DocFiler(arg1:string,arg2:string):Promise<main.ProcessResult>;
+
+export function GetActivityLog():Promise<Array<main.ActivityEntry>>;
+
 export function GetConfig():Promise<main.Config>;
 
 export function ProcessFiles(arg1:string,arg2:string):Promise<main.ProcessResult>;

@@ -1,5 +1,23 @@
 export namespace main {
 	
+	export class ActivityEntry {
+	    timestamp: string;
+	    task: string;
+	    summary: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActivityEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.timestamp = source["timestamp"];
+	        this.task = source["task"];
+	        this.summary = source["summary"];
+	        this.status = source["status"];
+	    }
+	}
 	export class Config {
 	    sourceFolder: string;
 	    destFolder: string;

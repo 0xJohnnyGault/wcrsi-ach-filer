@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import logoSvg from './assets/images/logo.svg';
-import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler, CBPFiler } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler, CBPFiler, DocFiler, GetActivityLog } from "../wailsjs/go/main/App";
 
 interface LogEntry {
   type: string;
@@ -11,6 +11,13 @@ interface LogEntry {
 interface ProcessResult {
   logs: LogEntry[];
   success: boolean;
+}
+
+interface ActivityEntry {
+  timestamp: string;
+  task: string;
+  summary: string;
+  status: string;
 }
 
 const tasks = [
@@ -35,6 +42,13 @@ const tasks = [
     description: 'Processes multiple XLS and PDF files grouped by date (YYYY_MM_DD in filenames). Extracts the loan number from the last 10 characters of each XLS filename to match against destination subdirectories. Copies each XLS along with its date-matched PDF deposit slip into the matched directory\'s Payments folder.',
     requires: 'XLS/XLSX files named YYYY_MM_DD_XXXXXXXXXX.xlsx (10-digit loan number) and PDF deposit slips named YYYY_MM_DD_Deposit_Slip.pdf',
   },
+  {
+    id: 'doc',
+    title: 'Doc Filer',
+    color: 'teal',
+    description: 'Scans the source folder for documents of any type. Extracts the account number from the last 10 characters of each filename (must be all digits). Copies each document directly into the matched destination subdirectory (NOT into a Payments subfolder). Reports an error for files without a valid 10-digit account number.',
+    requires: 'Files of any type whose last 10 filename characters (before the extension) are all digits (the account number)',
+  },
 ];
 
 function App() {
@@ -42,6 +56,13 @@ function App() {
   const [destFolder, setDestFolder] = useState('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [processing, setProcessing] = useState(false);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+
+  function loadActivity() {
+    GetActivityLog().then((entries: any) => {
+      setActivity(entries || []);
+    });
+  }
 
   useEffect(() => {
     GetConfig().then((cfg: any) => {
@@ -50,6 +71,7 @@ function App() {
         setDestFolder(cfg.destFolder || '');
       }
     });
+    loadActivity();
   }, []);
 
   async function selectSource() {
@@ -84,10 +106,14 @@ function App() {
         case 'cbp':
           result = await CBPFiler(sourceFolder, destFolder);
           break;
+        case 'doc':
+          result = await DocFiler(sourceFolder, destFolder);
+          break;
         default:
           return;
       }
       setLogs(result.logs || []);
+      loadActivity();
     } catch (err: any) {
       setLogs([{ type: 'error', message: `Unexpected error: ${err}` }]);
     } finally {
@@ -101,7 +127,7 @@ function App() {
     <div id="App">
       <div className="logo-section">
         <img src={logoSvg} alt="Gohno" className="logo" />
-        <span className="rev-label">Rev 5</span>
+        <span className="rev-label">Rev 7</span>
       </div>
 
       <div className="folder-section">
@@ -148,6 +174,23 @@ function App() {
           </div>
         </div>
       )}
+
+      <div className="activity-section">
+        <h3>Activity Log</h3>
+        {activity.length === 0 ? (
+          <p className="activity-empty">No activity yet</p>
+        ) : (
+          <div className="activity-list">
+            {activity.map((entry, i) => (
+              <div key={i} className={`activity-entry activity-${entry.status}`}>
+                <span className="activity-time">{entry.timestamp}</span>
+                <span className="activity-task">{entry.task}</span>
+                <span className="activity-summary">{entry.summary}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
