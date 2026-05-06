@@ -191,6 +191,11 @@
   color: #e74c3c;
 }
 
+.log-warning {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
 /* Activity log */
 .activity-section {
   text-align: left;
@@ -251,5 +256,10 @@
 }
 
 .activity-error .activity-summary {
-  color: #e67e22;
+  color: #e74c3c;
+}
+
+.activity-warning .activity-summary {
+  color: #e74c3c;
+  font-weight: 600;
 }

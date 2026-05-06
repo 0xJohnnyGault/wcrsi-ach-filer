@@ -28,7 +28,7 @@ type Config struct {
 }
 
 type LogEntry struct {
-	Type    string `json:"type"` // "success" or "error"
+	Type    string `json:"type"` // "success", "error", or "warning"
 	Message string `json:"message"`
 }
 
@@ -231,16 +231,22 @@ func (a *App) ProcessFiles(sourceFolder, destFolder string) ProcessResult {
 
 		// Copy all source files to Payments dir
 		copyErr := false
+		copiedCount := 0
 		for _, fname := range sourceFiles {
 			src := filepath.Join(sourceFolder, fname)
-			dst := filepath.Join(paymentsDir, fname)
-			if err := copyFile(src, dst); err != nil {
+			finalName, renamed, err := copyFileSafe(src, paymentsDir, fname)
+			if err != nil {
 				addLog("error", fmt.Sprintf("Account %s: Failed to copy %s: %v", acctNum, fname, err))
 				copyErr = true
+				continue
+			}
+			copiedCount++
+			if renamed {
+				addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s/Payments - saved as %s", fname, foundDir, finalName))
 			}
 		}
 		if !copyErr {
-			addLog("success", fmt.Sprintf("Account %s: Copied %d files to %s/Payments", acctNum, len(sourceFiles), foundDir))
+			addLog("success", fmt.Sprintf("Account %s: Copied %d files to %s/Payments", acctNum, copiedCount, foundDir))
 		}
 	}
 
@@ -329,11 +335,14 @@ func (a *App) CheckFiler(sourceFolder, destFolder string) ProcessResult {
 
 		// Copy PDF to Payments dir
 		src := filepath.Join(sourceFolder, pdfName)
-		dst := filepath.Join(paymentsDir, pdfName)
-		if err := copyFile(src, dst); err != nil {
+		finalName, renamed, err := copyFileSafe(src, paymentsDir, pdfName)
+		if err != nil {
 			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", pdfName, err))
 		} else {
 			addLog("success", fmt.Sprintf("%s: Copied to %s/Payments (account %s)", pdfName, foundDir, acctNum))
+			if renamed {
+				addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s/Payments - saved as %s", pdfName, foundDir, finalName))
+			}
 		}
 	}
 
@@ -450,10 +459,14 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 			copyErr := false
 			for _, fname := range filesToCopy {
 				src := filepath.Join(sourceFolder, fname)
-				dst := filepath.Join(paymentsDir, fname)
-				if err := copyFile(src, dst); err != nil {
+				finalName, renamed, err := copyFileSafe(src, paymentsDir, fname)
+				if err != nil {
 					addLog("error", fmt.Sprintf("%s: Failed to copy %s: %v", xlsName, fname, err))
 					copyErr = true
+					continue
+				}
+				if renamed {
+					addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s/Payments - saved as %s", fname, foundDir, finalName))
 				}
 			}
 			if !copyErr {
@@ -548,11 +561,14 @@ func (a *App) DocFiler(sourceFolder, destFolder string) ProcessResult {
 		// Copy document directly to FOUND_DIR_NAME (not to Payments subfolder)
 		destDir := filepath.Join(destFolder, foundDir)
 		src := filepath.Join(sourceFolder, docName)
-		dst := filepath.Join(destDir, docName)
-		if err := copyFile(src, dst); err != nil {
+		finalName, renamed, err := copyFileSafe(src, destDir, docName)
+		if err != nil {
 			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", docName, err))
 		} else {
 			addLog("success", fmt.Sprintf("%s: Copied to %s (account %s)", docName, foundDir, acctNum))
+			if renamed {
+				addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s - saved as %s", docName, foundDir, finalName))
+			}
 		}
 	}
 
@@ -594,10 +610,14 @@ func (a *App) GetActivityLog() ([]ActivityEntry, error) {
 func (a *App) appendActivity(task string, result ProcessResult) {
 	successCount := 0
 	errorCount := 0
+	warningCount := 0
 	for _, log := range result.Logs {
-		if log.Type == "success" {
+		switch log.Type {
+		case "success":
 			successCount++
-		} else {
+		case "warning":
+			warningCount++
+		default:
 			errorCount++
 		}
 	}
@@ -605,9 +625,14 @@ func (a *App) appendActivity(task string, result ProcessResult) {
 	status := "success"
 	if !result.Success {
 		status = "error"
+	} else if warningCount > 0 {
+		status = "warning"
 	}
 
 	summary := fmt.Sprintf("%d succeeded, %d errors", successCount, errorCount)
+	if warningCount > 0 {
+		summary = fmt.Sprintf("%s, %d duplicates", summary, warningCount)
+	}
 
 	entry := ActivityEntry{
 		Timestamp: time.Now().Format("2006-01-02 03:04:05 PM"),
@@ -652,4 +677,33 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
+}
+
+// copyFileSafe copies src to destDir using the original filename, but if a file
+// with that name already exists, it picks a non-colliding name like
+// "name (2).ext", "name (3).ext", etc. Returns the final filename used and a
+// flag indicating whether a rename occurred.
+func copyFileSafe(src, destDir, originalName string) (finalName string, renamed bool, err error) {
+	target := filepath.Join(destDir, originalName)
+	if _, statErr := os.Stat(target); os.IsNotExist(statErr) {
+		// No collision - copy with original name
+		if err := copyFile(src, target); err != nil {
+			return "", false, err
+		}
+		return originalName, false, nil
+	}
+
+	ext := filepath.Ext(originalName)
+	base := strings.TrimSuffix(originalName, ext)
+	for i := 2; i < 1000; i++ {
+		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
+		candidatePath := filepath.Join(destDir, candidate)
+		if _, statErr := os.Stat(candidatePath); os.IsNotExist(statErr) {
+			if err := copyFile(src, candidatePath); err != nil {
+				return "", false, err
+			}
+			return candidate, true, nil
+		}
+	}
+	return "", false, fmt.Errorf("could not find a non-colliding filename after 1000 tries")
 }

@@ -127,7 +127,7 @@ function App() {
     <div id="App">
       <div className="logo-section">
         <img src={logoSvg} alt="Gohno" className="logo" />
-        <span className="rev-label">Rev 7</span>
+        <span className="rev-label">Rev 8</span>
       </div>
 
       <div className="folder-section">
@@ -166,11 +166,14 @@ function App() {
         <div className="log-section">
           <h3>Results</h3>
           <div className="log-list">
-            {logs.map((log, i) => (
-              <div key={i} className={`log-entry log-${log.type}`}>
-                {log.type === 'success' ? '\u2713' : '\u2717'} {log.message}
-              </div>
-            ))}
+            {logs.map((log, i) => {
+              const icon = log.type === 'success' ? '\u2713' : log.type === 'warning' ? '\u26a0' : '\u2717';
+              return (
+                <div key={i} className={`log-entry log-${log.type}`}>
+                  {icon} {log.message}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
