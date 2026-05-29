@@ -333,16 +333,20 @@ func (a *App) CheckFiler(sourceFolder, destFolder string) ProcessResult {
 			continue
 		}
 
-		// Copy PDF to Payments dir
+		// Move PDF to Payments dir
 		src := filepath.Join(sourceFolder, pdfName)
 		finalName, renamed, err := copyFileSafe(src, paymentsDir, pdfName)
 		if err != nil {
 			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", pdfName, err))
-		} else {
-			addLog("success", fmt.Sprintf("%s: Copied to %s/Payments (account %s)", pdfName, foundDir, acctNum))
-			if renamed {
-				addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s/Payments - saved as %s", pdfName, foundDir, finalName))
-			}
+			continue
+		}
+		if err := os.Remove(src); err != nil {
+			addLog("error", fmt.Sprintf("%s: Copied to %s/Payments but failed to remove source: %v", pdfName, foundDir, err))
+			continue
+		}
+		addLog("success", fmt.Sprintf("%s: Moved to %s/Payments (account %s)", pdfName, foundDir, acctNum))
+		if renamed {
+			addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s/Payments - saved as %s", pdfName, foundDir, finalName))
 		}
 	}
 
@@ -529,25 +533,26 @@ func (a *App) DocFiler(sourceFolder, destFolder string) ProcessResult {
 		}
 	}
 
-	digitOnly := regexp.MustCompile(`^\d{10}$`)
+	acctPattern := regexp.MustCompile(`^[A-Za-z0-9]{10}$`)
 
 	// Process each file
 	for _, docName := range docFiles {
 		baseName := strings.TrimSuffix(docName, filepath.Ext(docName))
 		if len(baseName) < 10 {
-			addLog("error", fmt.Sprintf("%s: Filename too short to contain a 10-digit account number", docName))
+			addLog("error", fmt.Sprintf("%s: Filename too short to contain a 10-character account number", docName))
 			continue
 		}
 		acctNum := baseName[len(baseName)-10:]
-		if !digitOnly.MatchString(acctNum) {
-			addLog("error", fmt.Sprintf("%s: Last 10 characters are not all digits (got '%s')", docName, acctNum))
+		if !acctPattern.MatchString(acctNum) {
+			addLog("error", fmt.Sprintf("%s: Last 10 characters are not alphanumeric (got '%s')", docName, acctNum))
 			continue
 		}
 
-		// Search destination dirs for one containing the account number
+		// Search destination dirs for one containing the account number (case-insensitive)
 		foundDir := ""
+		acctLower := strings.ToLower(acctNum)
 		for _, dir := range destDirs {
-			if strings.Contains(dir, acctNum) {
+			if strings.Contains(strings.ToLower(dir), acctLower) {
 				foundDir = dir
 				break
 			}
@@ -558,17 +563,21 @@ func (a *App) DocFiler(sourceFolder, destFolder string) ProcessResult {
 			continue
 		}
 
-		// Copy document directly to FOUND_DIR_NAME (not to Payments subfolder)
+		// Move document directly to FOUND_DIR_NAME (not to Payments subfolder)
 		destDir := filepath.Join(destFolder, foundDir)
 		src := filepath.Join(sourceFolder, docName)
 		finalName, renamed, err := copyFileSafe(src, destDir, docName)
 		if err != nil {
 			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", docName, err))
-		} else {
-			addLog("success", fmt.Sprintf("%s: Copied to %s (account %s)", docName, foundDir, acctNum))
-			if renamed {
-				addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s - saved as %s", docName, foundDir, finalName))
-			}
+			continue
+		}
+		if err := os.Remove(src); err != nil {
+			addLog("error", fmt.Sprintf("%s: Copied to %s but failed to remove source: %v", docName, foundDir, err))
+			continue
+		}
+		addLog("success", fmt.Sprintf("%s: Moved to %s (account %s)", docName, foundDir, acctNum))
+		if renamed {
+			addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s - saved as %s", docName, foundDir, finalName))
 		}
 	}
 
