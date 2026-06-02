@@ -23,8 +23,9 @@ type ActivityEntry struct {
 }
 
 type Config struct {
-	SourceFolder string `json:"sourceFolder"`
-	DestFolder   string `json:"destFolder"`
+	SourceFolder string            `json:"sourceFolder"` // legacy global source (kept for backward compat)
+	DestFolder   string            `json:"destFolder"`
+	Sources      map[string]string `json:"sources"` // per-filer source folders, keyed by task id
 }
 
 type LogEntry struct {

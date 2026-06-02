@@ -52,10 +52,10 @@ const tasks = [
 ];
 
 function App() {
-  const [sourceFolder, setSourceFolder] = useState('');
+  const [sources, setSources] = useState<Record<string, string>>({});
   const [destFolder, setDestFolder] = useState('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [processing, setProcessing] = useState(false);
+  const [runningTask, setRunningTask] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
 
   function loadActivity() {
@@ -67,18 +67,19 @@ function App() {
   useEffect(() => {
     GetConfig().then((cfg: any) => {
       if (cfg) {
-        setSourceFolder(cfg.sourceFolder || '');
+        setSources(cfg.sources || {});
         setDestFolder(cfg.destFolder || '');
       }
     });
     loadActivity();
   }, []);
 
-  async function selectSource() {
-    const folder = await SelectFolder("Select Source Folder");
+  async function selectSource(taskId: string, taskTitle: string) {
+    const folder = await SelectFolder(`Select Source Folder for ${taskTitle}`);
     if (folder) {
-      setSourceFolder(folder);
-      await SaveConfig({ sourceFolder: folder, destFolder });
+      const nextSources = { ...sources, [taskId]: folder };
+      setSources(nextSources);
+      await SaveConfig({ sourceFolder: '', destFolder, sources: nextSources });
     }
   }
 
@@ -86,14 +87,15 @@ function App() {
     const folder = await SelectFolder("Select Destination Folder");
     if (folder) {
       setDestFolder(folder);
-      await SaveConfig({ sourceFolder, destFolder: folder });
+      await SaveConfig({ sourceFolder: '', destFolder: folder, sources });
     }
   }
 
   async function runTask(taskId: string) {
-    if (!sourceFolder || !destFolder) return;
+    const sourceFolder = sources[taskId];
+    if (!sourceFolder || !destFolder || runningTask) return;
     setLogs([]);
-    setProcessing(true);
+    setRunningTask(taskId);
     try {
       let result: ProcessResult;
       switch (taskId) {
@@ -117,24 +119,18 @@ function App() {
     } catch (err: any) {
       setLogs([{ type: 'error', message: `Unexpected error: ${err}` }]);
     } finally {
-      setProcessing(false);
+      setRunningTask(null);
     }
   }
-
-  const foldersReady = sourceFolder && destFolder;
 
   return (
     <div id="App">
       <div className="logo-section">
         <img src={logoSvg} alt="Gohno" className="logo" />
-        <span className="rev-label">Rev 8</span>
+        <span className="rev-label">Rev 9</span>
       </div>
 
       <div className="folder-section">
-        <div className="folder-row">
-          <button className="btn" onClick={selectSource}>Select Source Folder</button>
-          <span className="folder-path">{sourceFolder || 'No folder selected'}</span>
-        </div>
         <div className="folder-row">
           <button className="btn" onClick={selectDest}>Select Destination Folder</button>
           <span className="folder-path">{destFolder || 'No folder selected'}</span>
@@ -142,24 +138,41 @@ function App() {
       </div>
 
       <div className="cards-section">
-        {tasks.map((task) => (
-          <div key={task.id} className={`card card-${task.color}`}>
-            <div className="card-header">
-              <h3 className="card-title">{task.title}</h3>
+        {tasks.map((task) => {
+          const taskSource = sources[task.id] || '';
+          const isRunning = runningTask === task.id;
+          const ready = Boolean(taskSource && destFolder);
+          return (
+            <div key={task.id} className={`card card-${task.color}`}>
+              <div className="card-header">
+                <h3 className="card-title">{task.title}</h3>
+              </div>
+              <p className="card-description">{task.description}</p>
+              <div className="card-requires">
+                <span className="requires-label">Requires:</span> {task.requires}
+              </div>
+              <div className="card-source">
+                <button
+                  className={`btn card-source-btn card-source-btn-${task.color}`}
+                  onClick={() => selectSource(task.id, task.title)}
+                  disabled={isRunning}
+                >
+                  Select Source Folder
+                </button>
+                <span className="card-source-path" title={taskSource}>
+                  {taskSource || 'No source selected'}
+                </span>
+              </div>
+              <button
+                className={`btn card-btn card-btn-${task.color}`}
+                onClick={() => runTask(task.id)}
+                disabled={Boolean(runningTask) || !ready}
+              >
+                {isRunning ? 'Processing...' : `Run ${task.title}`}
+              </button>
             </div>
-            <p className="card-description">{task.description}</p>
-            <div className="card-requires">
-              <span className="requires-label">Requires:</span> {task.requires}
-            </div>
-            <button
-              className={`btn card-btn card-btn-${task.color}`}
-              onClick={() => runTask(task.id)}
-              disabled={processing || !foldersReady}
-            >
-              {processing ? 'Processing...' : `Run ${task.title}`}
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {logs.length > 0 && (

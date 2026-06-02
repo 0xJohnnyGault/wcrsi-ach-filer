@@ -21,6 +21,7 @@ export namespace main {
 	export class Config {
 	    sourceFolder: string;
 	    destFolder: string;
+	    sources: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -30,6 +31,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.sourceFolder = source["sourceFolder"];
 	        this.destFolder = source["destFolder"];
+	        this.sources = source["sources"];
 	    }
 	}
 	export class LogEntry {
