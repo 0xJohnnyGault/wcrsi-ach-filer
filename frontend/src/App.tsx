@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import logoSvg from './assets/images/logo.svg';
-import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler, CBPFiler, DocFiler, GetActivityLog } from "../wailsjs/go/main/App";
+import { GetConfig, SaveConfig, SelectFolder, ProcessFiles, CheckFiler, InvoiceFiler, CBPFiler, DocFiler, GetActivityLog } from "../wailsjs/go/main/App";
 
 interface LogEntry {
   type: string;
@@ -33,6 +33,13 @@ const tasks = [
     title: 'Check Filer',
     color: 'orange',
     description: 'Scans the source folder for PDF files. Extracts the account number from the last 10 characters of each PDF filename. Matches against destination subdirectories and copies each PDF into the corresponding Payments folder.',
+    requires: 'PDF files where the last 10 filename characters are the account number',
+  },
+  {
+    id: 'invoice',
+    title: 'Invoice Filer',
+    color: 'blue',
+    description: 'Scans the source folder for PDF files. Extracts the account number from the last 10 characters of each PDF filename. Matches against destination subdirectories and moves each PDF into the corresponding Invoices folder (created if it does not exist).',
     requires: 'PDF files where the last 10 filename characters are the account number',
   },
   {
@@ -105,6 +112,9 @@ function App() {
         case 'check':
           result = await CheckFiler(sourceFolder, destFolder);
           break;
+        case 'invoice':
+          result = await InvoiceFiler(sourceFolder, destFolder);
+          break;
         case 'cbp':
           result = await CBPFiler(sourceFolder, destFolder);
           break;
@@ -127,7 +137,7 @@ function App() {
     <div id="App">
       <div className="logo-section">
         <img src={logoSvg} alt="Gohno" className="logo" />
-        <span className="rev-label">Rev 9</span>
+        <span className="rev-label">Rev 10</span>
       </div>
 
       <div className="folder-section">

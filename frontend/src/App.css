@@ -100,6 +100,7 @@
 
 .card-green  { border-left-color: #2ecc71; }
 .card-orange { border-left-color: #e67e22; }
+.card-blue   { border-left-color: #3498db; }
 .card-purple { border-left-color: #9b59b6; }
 .card-teal   { border-left-color: #1abc9c; }
 
@@ -115,6 +116,7 @@
 
 .card-green  .card-title { color: #2ecc71; }
 .card-orange .card-title { color: #e67e22; }
+.card-blue   .card-title { color: #3498db; }
 .card-purple .card-title { color: #9b59b6; }
 .card-teal   .card-title { color: #1abc9c; }
 
@@ -165,6 +167,7 @@
 
 .card-source-btn-green  { color: #2ecc71; border-color: #2ecc71; }
 .card-source-btn-orange { color: #e67e22; border-color: #e67e22; }
+.card-source-btn-blue   { color: #3498db; border-color: #3498db; }
 .card-source-btn-purple { color: #9b59b6; border-color: #9b59b6; }
 .card-source-btn-teal   { color: #1abc9c; border-color: #1abc9c; }
 
@@ -188,11 +191,13 @@
 
 .card-btn-green  { background-color: #2ecc71; }
 .card-btn-orange { background-color: #e67e22; }
+.card-btn-blue   { background-color: #3498db; }
 .card-btn-purple { background-color: #9b59b6; }
 .card-btn-teal   { background-color: #1abc9c; }
 
 .card-btn-green:hover:not(:disabled)  { background-color: #3edd82; }
 .card-btn-orange:hover:not(:disabled) { background-color: #f39c12; }
+.card-btn-blue:hover:not(:disabled)   { background-color: #4aa3e0; }
 .card-btn-purple:hover:not(:disabled) { background-color: #ab69c6; }
 .card-btn-teal:hover:not(:disabled)   { background-color: #2ad1b1; }
 

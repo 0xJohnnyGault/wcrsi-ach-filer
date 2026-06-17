@@ -355,6 +355,102 @@ func (a *App) CheckFiler(sourceFolder, destFolder string) ProcessResult {
 	return result
 }
 
+func (a *App) InvoiceFiler(sourceFolder, destFolder string) ProcessResult {
+	result := ProcessResult{Success: true}
+	addLog := func(logType, msg string) {
+		result.Logs = append(result.Logs, LogEntry{Type: logType, Message: msg})
+		if logType == "error" {
+			result.Success = false
+		}
+	}
+
+	// Read source directory for PDF files
+	entries, err := os.ReadDir(sourceFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read source folder: %v", err))
+		return result
+	}
+
+	var pdfFiles []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(e.Name()), ".pdf") {
+			pdfFiles = append(pdfFiles, e.Name())
+		}
+	}
+
+	if len(pdfFiles) == 0 {
+		addLog("error", "No PDF files found in source folder")
+		return result
+	}
+
+	// Read destination sub-directories
+	destEntries, err := os.ReadDir(destFolder)
+	if err != nil {
+		addLog("error", fmt.Sprintf("Cannot read destination folder: %v", err))
+		return result
+	}
+	var destDirs []string
+	for _, e := range destEntries {
+		if e.IsDir() {
+			destDirs = append(destDirs, e.Name())
+		}
+	}
+
+	// Process each PDF file
+	for _, pdfName := range pdfFiles {
+		// Extract account number: last 10 characters of filename (before .pdf extension)
+		baseName := strings.TrimSuffix(pdfName, filepath.Ext(pdfName))
+		if len(baseName) < 10 {
+			addLog("error", fmt.Sprintf("%s: Filename too short to extract 10-digit account number", pdfName))
+			continue
+		}
+		acctNum := baseName[len(baseName)-10:]
+
+		// Search destination dirs for one containing the account number
+		foundDir := ""
+		for _, dir := range destDirs {
+			if strings.Contains(dir, acctNum) {
+				foundDir = dir
+				break
+			}
+		}
+
+		if foundDir == "" {
+			addLog("error", fmt.Sprintf("%s: No matching directory found for account %s", pdfName, acctNum))
+			continue
+		}
+
+		// Create Invoices subdirectory if needed
+		invoicesDir := filepath.Join(destFolder, foundDir, "Invoices")
+		if err := os.MkdirAll(invoicesDir, 0755); err != nil {
+			addLog("error", fmt.Sprintf("%s: Cannot create Invoices folder: %v", pdfName, err))
+			continue
+		}
+
+		// Move PDF to Invoices dir
+		src := filepath.Join(sourceFolder, pdfName)
+		finalName, renamed, err := copyFileSafe(src, invoicesDir, pdfName)
+		if err != nil {
+			addLog("error", fmt.Sprintf("%s: Failed to copy: %v", pdfName, err))
+			continue
+		}
+		if err := os.Remove(src); err != nil {
+			addLog("error", fmt.Sprintf("%s: Copied to %s/Invoices but failed to remove source: %v", pdfName, foundDir, err))
+			continue
+		}
+		addLog("success", fmt.Sprintf("%s: Moved to %s/Invoices (account %s)", pdfName, foundDir, acctNum))
+		if renamed {
+			addLog("warning", fmt.Sprintf("DUPLICATE: %s already existed in %s/Invoices - saved as %s", pdfName, foundDir, finalName))
+		}
+	}
+
+	a.appendActivity("Invoice Filer", result)
+	return result
+}
+
 func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 	result := ProcessResult{Success: true}
 	addLog := func(logType, msg string) {

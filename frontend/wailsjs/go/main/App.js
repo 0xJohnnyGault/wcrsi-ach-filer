@@ -22,6 +22,10 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function InvoiceFiler(arg1, arg2) {
+  return window['go']['main']['App']['InvoiceFiler'](arg1, arg2);
+}
+
 export function ProcessFiles(arg1, arg2) {
   return window['go']['main']['App']['ProcessFiles'](arg1, arg2);
 }

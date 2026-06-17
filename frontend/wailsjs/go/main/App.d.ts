@@ -12,6 +12,8 @@ export function GetActivityLog():Promise<Array<main.ActivityEntry>>;
 
 export function GetConfig():Promise<main.Config>;
 
+export function InvoiceFiler(arg1:string,arg2:string):Promise<main.ProcessResult>;
+
 export function ProcessFiles(arg1:string,arg2:string):Promise<main.ProcessResult>;
 
 export function SaveConfig(arg1:main.Config):Promise<void>;
