@@ -183,12 +183,20 @@ func (a *App) ProcessFiles(sourceFolder, destFolder string) ProcessResult {
 		}
 	}
 
-	// Collect source files to copy (all files in source folder)
+	// Collect PDF files to copy (the spreadsheet itself is excluded - it's
+	// only used to locate destination folders)
 	var sourceFiles []string
 	for _, e := range entries {
-		if !e.IsDir() {
+		if e.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(e.Name()), ".pdf") {
 			sourceFiles = append(sourceFiles, e.Name())
 		}
+	}
+	if len(sourceFiles) == 0 {
+		addLog("error", "No PDF files found in source folder")
+		return result
 	}
 
 	// Track which accounts we've already processed to avoid duplicate copies

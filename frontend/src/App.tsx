@@ -25,8 +25,8 @@ const tasks = [
     id: 'ach',
     title: 'ACH Filer',
     color: 'green',
-    description: 'Processes an XLS/XLSX spreadsheet from the source folder. Reads the "Account" column in Row 2 to match account numbers against destination subdirectories. Copies all source files into each matched directory\'s Payments folder.',
-    requires: 'XLS/XLSX file with "Account" column in Row 2',
+    description: 'Processes an XLS/XLSX spreadsheet from the source folder. Reads the "Account" column in Row 2 to match account numbers against destination subdirectories. Copies the PDF files (not the spreadsheet itself) into each matched directory\'s Payments folder.',
+    requires: 'XLS/XLSX file with "Account" column in Row 2, plus PDF files to file',
   },
   {
     id: 'check',
