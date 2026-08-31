@@ -46,7 +46,7 @@ const tasks = [
     id: 'cbp',
     title: 'CBP Filer',
     color: 'purple',
-    description: 'Processes multiple XLS and PDF files grouped by date (YYYY_MM_DD in filenames). Extracts the loan number from the last 10 characters of each XLS filename to match against destination subdirectories. Copies each XLS along with its date-matched PDF deposit slip into the matched directory\'s Payments folder.',
+    description: 'Processes multiple XLS and PDF files grouped by date (YYYY_MM_DD in filenames). Extracts the loan number from the last 10 characters of each XLS filename to match against destination subdirectories. Copies each XLS along with its date-matched PDF deposit slip (which may be copied to several loan folders) into the matched directory\'s Payments folder, then removes source files once every copy of them has succeeded.',
     requires: 'XLS/XLSX files named YYYY_MM_DD_XXXXXXXXXX.xlsx (10-digit loan number) and PDF deposit slips named YYYY_MM_DD_Deposit_Slip.pdf',
   },
   {

@@ -526,6 +526,12 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 
 	totalProcessed := 0
 
+	// Track every copy attempt per source filename. A PDF deposit slip can be
+	// copied multiple times (once per XLS in its date group), so a source
+	// file is only safe to delete once ALL of its copy attempts succeeded.
+	attempted := make(map[string]bool)
+	failed := make(map[string]bool)
+
 	// Process each date group
 	for date, group := range groups {
 		addLog("success", fmt.Sprintf("Date %s: Found %d XLS file(s) and %d PDF deposit slip(s)", date, len(group.xlsFiles), len(group.pdfFiles)))
@@ -567,11 +573,13 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 
 			copyErr := false
 			for _, fname := range filesToCopy {
+				attempted[fname] = true
 				src := filepath.Join(sourceFolder, fname)
 				finalName, renamed, err := copyFileSafe(src, paymentsDir, fname)
 				if err != nil {
 					addLog("error", fmt.Sprintf("%s: Failed to copy %s: %v", xlsName, fname, err))
 					copyErr = true
+					failed[fname] = true
 					continue
 				}
 				if renamed {
@@ -587,6 +595,25 @@ func (a *App) CBPFiler(sourceFolder, destFolder string) ProcessResult {
 
 	if totalProcessed == 0 {
 		addLog("error", "No files were processed")
+	}
+
+	// Remove source files whose every copy attempt succeeded. A file that was
+	// never matched to a destination, or that failed even one of its copies,
+	// is left in place so it can be retried.
+	deletedCount := 0
+	for fname := range attempted {
+		if failed[fname] {
+			continue
+		}
+		src := filepath.Join(sourceFolder, fname)
+		if err := os.Remove(src); err != nil {
+			addLog("warning", fmt.Sprintf("%s: Copied successfully but failed to remove source: %v", fname, err))
+			continue
+		}
+		deletedCount++
+	}
+	if deletedCount > 0 {
+		addLog("success", fmt.Sprintf("Removed %d source file(s) after successful copy", deletedCount))
 	}
 
 	a.appendActivity("CBP Filer", result)
